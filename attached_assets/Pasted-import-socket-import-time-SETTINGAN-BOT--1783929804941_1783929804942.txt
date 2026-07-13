@@ -1,0 +1,65 @@
+import socket
+import time
+
+# ==========================================
+# SETTINGAN BOT
+# ==========================================
+SERVER = "irc.austnet.org"
+PORT = 6667
+NICK = "GatorZ"
+CHANNEL = "#AndjingLaoet"
+OWNER = "AndjingLaoet"
+# ==========================================
+
+
+def run_bot():
+    while True:
+        try:
+            print(f"[+] Menghubungkan ke {SERVER}:{PORT}...")
+            irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            irc.connect((SERVER, PORT))
+
+            # Handshake Identitas Bot
+            irc.send(f"NICK {NICK}\r\n".encode())
+            irc.send(f"USER {NICK} 0 * :Satpam Resmi {CHANNEL}\r\n".encode())
+
+            # Marker flag agar bot cuma JOIN sekali saat pertama masuk
+            joined = False
+
+            # Loop utama pembacaan data socket
+            while True:
+                data = irc.recv(2048).decode("utf-8", errors="ignore")
+                if not data:
+                    print("[-] Koneksi terputus dari server.")
+                    break
+
+                # Proses data baris demi baris
+                for line in data.split("\r\n"):
+                    if not line:
+                        continue
+
+                    # Tampilkan traffic IRC di terminal
+                    print(line)
+
+                    # 1. Wajib PONG kalau server minta PING
+                    if line.startswith("PING"):
+                        ping_code = line.split()[1]
+                        irc.send(f"PONG {ping_code}\r\n".encode())
+
+                    # 2. Cek apakah Server sudah kirim Kode 001 (Welcome / Registrasi Berhasil)
+                    if not joined and " 001 " in line:
+                        print(f"\n[+] Server Welcome Diterima! Mengirim perintah JOIN ke {CHANNEL}...\n")
+                        irc.send(f"JOIN {CHANNEL}\r\n".encode())
+                        joined = True
+
+                    # 3. Otomatis kasih OP (+o) kalau OWNER masuk room
+                    if "JOIN" in line and OWNER in line:
+                        irc.send(f"MODE {CHANNEL} +o {OWNER}\r\n".encode())
+
+        except Exception as e:
+            print(f"[-] Terjadi error ({e}). Reconnect dalam 10 detik...")
+            time.sleep(10)
+
+
+if __name__ == "__main__":
+    run_bot()

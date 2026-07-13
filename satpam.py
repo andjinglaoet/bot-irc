@@ -33,7 +33,7 @@ def run_bot():
                     print("[-] Koneksi terputus dari server.")
                     break
 
-                # Proses data baris demi baris (karena IRC bisa ngirim beberapa line sekaligus)
+                # Proses data baris demi baris
                 for line in data.split("\r\n"):
                     if not line:
                         continue
