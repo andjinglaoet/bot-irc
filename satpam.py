@@ -2,57 +2,64 @@ import socket
 import time
 
 # ==========================================
-# SETTINGAN BOT KAMU (Bebas Ubah)
+# SETTINGAN BOT
 # ==========================================
 SERVER = "irc.austnet.org"
 PORT = 6667
-NICK = "GatorZ"  # Nama/Nick bot kamu di IRC (bebas diganti)
-CHANNEL = "#AndjingLaoet"  # Channel milik kamu
-OWNER = "AndjingLaoet"  # Nick mIRC kamu pas online
+NICK = "GatorZ"
+CHANNEL = "#AndjingLaoet"
+OWNER = "AndjingLaoet"
 # ==========================================
 
 
 def run_bot():
-  while True:
-    try:
-      print(f"[+] Menghubungkan ke {SERVER}...")
-      irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      irc.connect((SERVER, PORT))
+    while True:
+        try:
+            print(f"[+] Menghubungkan ke {SERVER}:{PORT}...")
+            irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            irc.connect((SERVER, PORT))
 
-      # Kirim data identitas bot
-      irc.send(f"NICK {NICK}\r\n".encode())
-      irc.send(f"USER {NICK} 0 * :Satpam Resmi #AndjingLaoet\r\n".encode())
+            # Handshake Identitas Bot
+            irc.send(f"NICK {NICK}\r\n".encode())
+            irc.send(f"USER {NICK} 0 * :Satpam Resmi {CHANNEL}\r\n".encode())
 
-      time.sleep(3)
+            # Marker flag agar bot cuma JOIN sekali saat pertama masuk
+            joined = False
 
-      # Join ke channel kamu
-      irc.send(f"JOIN {CHANNEL}\r\n".encode())
-      print(f"[+] BERHASIL PARKIR DI {CHANNEL}!")
+            # Loop utama pembacaan data socket
+            while True:
+                data = irc.recv(2048).decode("utf-8", errors="ignore")
+                if not data:
+                    print("[-] Koneksi terputus dari server.")
+                    break
 
-      # Loop penjaga koneksi
-      while True:
-        data = irc.recv(2048).decode("utf-8", errors="ignore")
-        if not data:
-          break
+                # Proses data baris demi baris (karena IRC bisa ngirim beberapa line sekaligus)
+                for line in data.split("\r\n"):
+                    if not line:
+                        continue
 
-        # Tampilkan aktivitas di terminal
-        print(data.strip())
+                    # Tampilkan traffic IRC di terminal
+                    print(line)
 
-        # Auto PONG biar gak disconnect/ping timeout dari server
-        if data.startswith("PING"):
-          ping_code = data.split()[1]
-          irc.send(f"PONG {ping_code}\r\n".encode())
+                    # 1. Wajib PONG kalau server minta PING
+                    if line.startswith("PING"):
+                        ping_code = line.split()[1]
+                        irc.send(f"PONG {ping_code}\r\n".encode())
 
-        # Kalau kamu (AndjingLaoet) masuk room, bot otomatis kasih Op (@)
-        if "JOIN" in data and OWNER in data:
-          irc.send(f"MODE {CHANNEL} +o {OWNER}\r\n".encode())
+                    # 2. Cek apakah Server sudah kirim Kode 001 (Welcome / Registrasi Berhasil)
+                    if not joined and " 001 " in line:
+                        print(f"\n[+] Server Welcome Diterima! Mengirim perintah JOIN ke {CHANNEL}...\n")
+                        irc.send(f"JOIN {CHANNEL}\r\n".encode())
+                        joined = True
 
-    except Exception as e:
-      print(
-          f"[-] Koneksi terputus ({e}). Mencoba Reconnect dalam 10 detik..."
-      )
-      time.sleep(10)
+                    # 3. Otomatis kasih OP (+o) kalau OWNER masuk room
+                    if "JOIN" in line and OWNER in line:
+                        irc.send(f"MODE {CHANNEL} +o {OWNER}\r\n".encode())
+
+        except Exception as e:
+            print(f"[-] Terjadi error ({e}). Reconnect dalam 10 detik...")
+            time.sleep(10)
 
 
 if __name__ == "__main__":
-  run_bot()
+    run_bot()
